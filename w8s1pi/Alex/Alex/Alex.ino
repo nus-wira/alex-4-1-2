@@ -7,16 +7,21 @@
  * Alex's configuration constants
  */
 
+// Pins
+
+#define PIN_2 (1 << 2)
+#define PIN_3 (1 << 3)
+
 // Number of ticks per revolution from the 
 // wheel encoder.
 
-#define COUNTS_PER_REV      1
+#define COUNTS_PER_REV      36
 
 // Wheel circumference in cm.
 // We will use this to calculate forward/backward distance traveled 
 // by taking revs * WHEEL_CIRC
 
-#define WHEEL_CIRC          1
+#define WHEEL_CIRC          22
 
 // Motor control pins. You need to adjust these till
 // Alex moves in the correct direction
@@ -164,8 +169,8 @@ void enablePullups()
   // Use bare-metal to enable the pull-up resistors on pins
   // 2 and 3. These are pins PD2 and PD3 respectively.
   // We set bits 2 and 3 in DDRD to 0 to make them inputs. 
-  DDRD &= 0b001;
-  PORTD |= 0b110;
+  DDRD &= ~PIN_2 & ~PIN_3;
+  PORTD |= PIN_2 | PIN_3;
 }
 
 // Functions to be called by INT0 and INT1 ISRs.

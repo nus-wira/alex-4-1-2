@@ -6,6 +6,7 @@ typedef struct
 {
   // Uncomment the line below for Step 7
   char c;
+  char dummy[3];
   int32_t x;
   int32_t y;
 
