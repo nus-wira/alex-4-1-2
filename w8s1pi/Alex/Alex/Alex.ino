@@ -1,8 +1,24 @@
 #include <serialize.h>
 #include <stdarg.h>
+#include <math.h>
 
 #include "packet.h"
 #include "constants.h"
+
+// PI, for calculating turn circumference
+#define PI            3.141592536
+
+// TO EDIT ACTIVITY 4 STEP 4
+// Alex's length and breadth in cm
+#define ALEX_LENGTH   16
+#define ALEX_BREADTH  6
+
+// Alex's diagonal. We compute and store this once
+// since it is expensive to compute and doesn't change.
+float alexDiagonal=0.0;
+
+// Alex's turning circumference, calculated once
+float alexCirc = 0.0;
 
 typedef enum {
   STOP=0,
@@ -67,6 +83,13 @@ volatile unsigned long rightRevs;
 volatile unsigned long forwardDist;
 volatile unsigned long reverseDist;
 
+// Variables to keep track of whether we have moved a commanded distance
+unsigned long deltaDist;
+unsigned long newDist;
+
+// Variables to keep track of our turning angle
+unsigned long deltaTicks;
+unsigned long targetTicks;
 
 /*
  * 
@@ -372,7 +395,15 @@ int pwmVal(float speed)
 // Specifying a distance of 0 means Alex will
 // continue moving forward indefinitely.
 void forward(float dist, float speed)
-{
+{ 
+  // Code to tell us how far to move
+  if (dist == 0)
+    deltaDist = 999999;
+  else
+    deltaDist = dist;
+
+  newDist = forwardDist + deltaDist;
+  
   dir = FORWARD;
   
   int val = pwmVal(speed);
@@ -398,7 +429,14 @@ void forward(float dist, float speed)
 // continue reversing indefinitely.
 void reverse(float dist, float speed)
 {
+  // Code to tell us how far to move
+  if (dist == 0)
+    deltaDist = 999999;
+  else
+    deltaDist = dist;
 
+  newDist = reverseDist + deltaDist;
+  
   int val = pwmVal(speed);
 
   // For now we will ignore dist and 
@@ -414,6 +452,27 @@ void reverse(float dist, float speed)
   analogWrite(RF, 0);
 }
 
+// New function to estimate number of wheel ticks
+// needed to turn an angle
+unsigned long computeDeltaTicks(float ang)
+{
+  /* 
+   *  We will assume that angular distance moved = 
+   *  linear distance moved in one wheel revolution.
+   *  This is (probably) incorrect but simplifies calculation.
+   *  # of wheel revs to make one full 360 turn
+   *  is alexCirc / WHEEL_CIRC
+   *  This is for 360 degrees. For ang degrees it will be
+   *  (ang * alexCirc) / (360 * WHEEL_CIRC)
+   *  To convert to ticks, we multiply by COUNTS_PER_REV
+   */
+  unsigned long ticks = (unsigned long) ((ang * alexCirc * COUNTS_PER_REV)
+                                         (360.0 * WHEEL_CIRC));
+
+  return ticks;
+  
+}
+
 // Turn Alex left "ang" degrees at speed "speed".
 // "speed" is expressed as a percentage. E.g. 50 is
 // turn left at half speed.
@@ -421,6 +480,13 @@ void reverse(float dist, float speed)
 // turn left indefinitely.
 void left(float ang, float speed)
 {
+  if (ang==0)
+    deltaTicks=99999999;
+  else
+    deltaTicks=computeDeltaTicks(ang);
+
+  targetTicks = leftReverseTicksTurns + deltaTicks;
+  
   dir = LEFT;
   
   int val = pwmVal(speed);
@@ -442,6 +508,13 @@ void left(float ang, float speed)
 // turn right indefinitely.
 void right(float ang, float speed)
 {
+  if (ang==0)
+    deltaTicks=99999999;
+  else
+    deltaTicks=computeDeltaTicks(ang);
+
+  targetTicks = rightReverseTicksTurns + deltaTicks;
+  
   dir = RIGHT;
   
   int val = pwmVal(speed);
@@ -582,7 +655,9 @@ void waitForHello()
 
 void setup() {
   // put your setup code here, to run once:
-
+  alexDiagonal = sqrt((ALEX_LENGTH * ALEX_LENGTH) + 
+                      (ALEX_BREADTH * ALEX_BREADTH));
+  alexCirc = PI * alexDiagonal;
   cli();
   setupEINT();
   setupSerial();
@@ -620,7 +695,7 @@ void loop() {
 
 // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
 
-// forward(0, 100);
+  forward(0, 100);
 
 // Uncomment the code below for Week 9 Studio 2
 
@@ -643,5 +718,42 @@ void loop() {
         sendBadChecksum();
       } 
       
-      
+  if(deltaDist > 0)
+  {
+    if(dir==FORWARD)
+    {
+      if(forwardDist > newDist)
+      {
+        deltaDist=0;
+        newDist=0;
+        12
+        stop();
+      }
+    }
+    else
+      if(dir == BACKWARD)
+      {
+        if(reverseDist > newDist)
+        {
+          deltaDist=0;
+          newDist=0;
+          stop();
+        }
+    }
+    else
+      if(dir == STOP)
+      {
+        deltaDist=0;
+        newDist=0;
+        stop();
+      }
+  }
+  if (deltaTicks > 0) {
+    if ((dir == LEFT && leftReverseTicksTurns >= targetTicks) ||
+        (dir == RIGHT && rightReverseTicksTurns >= targetTicks) ||
+        (dir == STOP)) {
+      deltaTicks = 0;
+      targetTicks = 0;
+      stop(); 
+  }
 }
