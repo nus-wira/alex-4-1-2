@@ -245,7 +245,7 @@ void leftISR()
                   COUNTS_PER_REV * WHEEL_CIRC);
     break;
   case BACKWARD:
-    leftReverseTicks++; break;
+    leftReverseTicks++;
     reverseDist = (unsigned long) ((float) leftReverseTicks / 
                   COUNTS_PER_REV * WHEEL_CIRC);
     break;
@@ -254,30 +254,20 @@ void leftISR()
   case RIGHT:
     leftForwardTicksTurns++; break;
   }
-//  Serial.print("LEFT: ");
-//  Serial.println(leftTicks);
 }
 
 void rightISR()
 {
   switch (dir) {
   case FORWARD:
-    leftForwardTicks++; 
-//    forwardDist = (unsigned long) ((float) rightForwardTicks / 
-//                  COUNTS_PER_REV * WHEEL_CIRC);
-    break;
+    rightForwardTicks++; break;
   case BACKWARD:
-    leftReverseTicks++; break;
-//    reverseDist = (unsigned long) ((float) rightReverseTicks / 
-//                  COUNTS_PER_REV * WHEEL_CIRC);
-    break;
+    rightReverseTicks++; break;
   case LEFT:
     rightForwardTicksTurns++; break;
   case RIGHT:
     rightReverseTicksTurns++; break;
   }
-//  Serial.print("RIGHT: ");
-//  Serial.println(rightTicks);
 }
 
 // Set up the external interrupt pins INT0 and INT1
@@ -466,7 +456,7 @@ unsigned long computeDeltaTicks(float ang)
    *  (ang * alexCirc) / (360 * WHEEL_CIRC)
    *  To convert to ticks, we multiply by COUNTS_PER_REV
    */
-  unsigned long ticks = (unsigned long) ((ang * alexCirc * COUNTS_PER_REV)
+  unsigned long ticks = (unsigned long) ((ang * alexCirc * COUNTS_PER_REV) /
                                          (360.0 * WHEEL_CIRC));
 
   return ticks;
@@ -718,42 +708,23 @@ void loop() {
         sendBadChecksum();
       } 
       
-  if(deltaDist > 0)
-  {
-    if(dir==FORWARD)
-    {
-      if(forwardDist > newDist)
-      {
-        deltaDist=0;
-        newDist=0;
-        12
-        stop();
-      }
+  if(deltaDist > 0) {
+    if((dir==FORWARD && forwardDist > newDist) ||
+       (dir==BACKWARD && reverseDist > newDist) ||
+       (dir==STOP)) {
+      deltaDist=0;
+      newDist=0;
+      stop();
     }
-    else
-      if(dir == BACKWARD)
-      {
-        if(reverseDist > newDist)
-        {
-          deltaDist=0;
-          newDist=0;
-          stop();
-        }
-    }
-    else
-      if(dir == STOP)
-      {
-        deltaDist=0;
-        newDist=0;
-        stop();
-      }
   }
+  
   if (deltaTicks > 0) {
     if ((dir == LEFT && leftReverseTicksTurns >= targetTicks) ||
         (dir == RIGHT && rightReverseTicksTurns >= targetTicks) ||
         (dir == STOP)) {
       deltaTicks = 0;
       targetTicks = 0;
-      stop(); 
+      stop();
+    }
   }
 }
