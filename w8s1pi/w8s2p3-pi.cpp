@@ -7,7 +7,8 @@
 typedef struct
 {
 	// Uncomment the line below for step 7 of activity 4.
-//	char c;
+	char c;
+	char dummy[3];
 	int x;
 	int y;
 } TData;
@@ -75,7 +76,7 @@ int main()
 
 		// Uncomment the line below for Step 7 of Activity 4 
 		// in Week 8 Studio 2.
-	//	printf("c received is %c\n", test.c);
+		printf("c received is %c\n", test.c);
 		sleep(1);
 	}
 

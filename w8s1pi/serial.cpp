@@ -133,6 +133,11 @@ void serialWrite(char *buffer, int len)
 	if(_fd >= 0)
 	{
 		n = write(_fd, (void *) buffer, len);
-		fsync(_fd);
 	}
+}
+
+void endSerial()
+{
+	if(_fd > 0)
+		close(_fd);
 }
