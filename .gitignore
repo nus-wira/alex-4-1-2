@@ -3,4 +3,5 @@
 *.key
 *.pem
 *.csr
-
+*.srl
+/rplidar_sdk_v1.5.7
