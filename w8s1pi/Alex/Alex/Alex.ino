@@ -5,10 +5,9 @@
 #include "packet.h"
 #include "constants.h"
 
-// PI, for calculating turn circumference
-#define PI            3.141592536
 
-// TO EDIT ACTIVITY 4 STEP 4
+
+// TO EDIT ACTIVITY 4 STEP 4l
 // Alex's length and breadth in cm
 #define ALEX_LENGTH   16
 #define ALEX_BREADTH  6
@@ -38,11 +37,15 @@ volatile TDirection dir = STOP;
 
 #define PIN_2 (1 << 2)
 #define PIN_3 (1 << 3)
+//#define PIN_5 (1 << 5)
+//#define PIN_6 (1 << 6)
+//#define PIN_10 (1 << 10)
+//#define PIN_11 (1 << 11)(wrong)
 
 // Number of ticks per revolution from the 
 // wheel encoder.
 
-#define COUNTS_PER_REV      36
+#define COUNTS_PER_REV      360
 
 // Wheel circumference in cm.
 // We will use this to calculate forward/backward distance traveled 
@@ -52,10 +55,10 @@ volatile TDirection dir = STOP;
 
 // Motor control pins. You need to adjust these till
 // Alex moves in the correct direction
-#define LF                  6   // Left forward pin
-#define LR                  5   // Left reverse pin
-#define RF                  10  // Right forward pin
-#define RR                  11  // Right reverse pin
+#define RF                  6   // Left forward pin
+#define RR                  5   // Left reverse pin
+#define LF                  10  // Right forward pin
+#define LR                  11  // Right reverse pin
 
 /*
  *    Alex's State Variables
@@ -357,6 +360,10 @@ void setupMotors()
    *    B1IN - Pin 10, PB2, OC1B
    *    B2In - pIN 11, PB3, OC2A
    */
+   pinMode(5, OUTPUT);
+   pinMode(6, OUTPUT);
+   pinMode(10, OUTPUT);
+   pinMode(11, OUTPUT);
 }
 
 // Start the PWM for Alex's motors.
@@ -426,6 +433,8 @@ void reverse(float dist, float speed)
     deltaDist = dist;
 
   newDist = reverseDist + deltaDist;
+
+  dir = BACKWARD;
   
   int val = pwmVal(speed);
 
@@ -592,6 +601,10 @@ void handleCommand(TPacket *command)
       sendOK();
       right((float) command->params[0], (float) command->params[1]);
       break;
+    case COMMAND_STOP:
+      sendOK();
+      stop();
+      break;
     case COMMAND_GET_STATS:
 //      sendOK();
       sendStatus();
@@ -685,7 +698,7 @@ void loop() {
 
 // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
 
-  forward(0, 100);
+//  forward(0, 100);
 
 // Uncomment the code below for Week 9 Studio 2
 
