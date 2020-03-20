@@ -124,7 +124,8 @@ void uartSendPacket(TPacket *packet)
 {
 	char buffer[PACKET_SIZE];
 	int len = serialize(buffer, packet, sizeof(TPacket));
-
+	
+	printf("\n\nSending Packet\n\n");
 	serialWrite(buffer, len);
 }
 
