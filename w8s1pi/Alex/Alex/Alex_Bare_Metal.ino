@@ -94,12 +94,16 @@ unsigned long newDist;
 unsigned long deltaTicks;
 unsigned long targetTicks;
 
+/**
+ * Setup channel A and B of Timer 0 and 1.
+ */
 void setupPWM() {
   TCNT0 = 0;
   TCCR0A = 0b10100001;
   OCR0A = 0;
   OCR0B = 0;
   TCCR0B = 0b00000001;
+  TIMSK0 |= 0b11;
   TCNT1 = 0;
   TCCR1A = 0b10100001;
   OCR1AH = 0;
@@ -107,10 +111,13 @@ void setupPWM() {
   OCR1BH = 0;
   OCR1BL = 0;
   TCCR1B = 0b00000001;
+  TIMSK1 |= 0b11;
 }
 
 
-
+/**
+ * Replicate analogWrite() functionality.
+ */
 void analog_Write(int portNum, int val) {
   switch (portNum) {
     case LR: 
@@ -151,8 +158,8 @@ void setupMotors()
    pinMode(6, OUTPUT);
    pinMode(10, OUTPUT);
    pinMode(9, OUTPUT);*/
-   DDRD = 0b01100000;
-   DDRB = 0b00000110;
+   DDRD |= 0b01100000;
+   DDRB |= 0b00000110;
 }
 
 
