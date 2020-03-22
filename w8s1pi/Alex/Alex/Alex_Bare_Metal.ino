@@ -114,6 +114,13 @@ void setupPWM() {
   TIMSK1 |= 0b110;
 }
 
+/**
+ * Turns off Timer 2 and ADC module since they aren't used.
+ */
+void setupPRR() {
+  PRR |= 0b01000001;
+}
+
 
 /**
  * Replicate analogWrite() functionality.
@@ -711,6 +718,7 @@ void setup() {
                       (ALEX_BREADTH * ALEX_BREADTH));
   alexCirc = PI * alexDiagonal;
   cli();
+  setupPRR();
   setupEINT();
   setupSerial();
   startSerial();
