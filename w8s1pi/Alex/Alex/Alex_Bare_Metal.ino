@@ -103,7 +103,7 @@ void setupPWM() {
   OCR0A = 0;
   OCR0B = 0;
   TCCR0B = 0b00000001;
-  TIMSK0 |= 0b11;
+  TIMSK0 |= 0b110;
   TCNT1 = 0;
   TCCR1A = 0b10100001;
   OCR1AH = 0;
@@ -111,7 +111,7 @@ void setupPWM() {
   OCR1BH = 0;
   OCR1BL = 0;
   TCCR1B = 0b00000001;
-  TIMSK1 |= 0b11;
+  TIMSK1 |= 0b110;
 }
 
 
