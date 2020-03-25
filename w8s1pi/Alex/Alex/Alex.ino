@@ -802,7 +802,8 @@ void loop() {
       if(result == PACKET_CHECKSUM_BAD)
       {
         sendBadChecksum();
-      } 
+      }
+
   
   if(deltaDist > 0) {
     if((dir==FORWARD && forwardDist > newDist) ||
@@ -824,7 +825,7 @@ void loop() {
 //      rightMul = ratio > rightMul ? ratio : rightMul; 
       dbprint("\n\n%d\n\n", (int)(rightMul*100));
       stop();
-      putArduinoToIdle();
+//      putArduinoToIdle();
       
     } 
   }
@@ -836,7 +837,10 @@ void loop() {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
-      putArduinoToIdle();
+//      putArduinoToIdle();
     }
   }
+
+//  if (result == PACKET_INCOMPLETE && dir == STOP)
+//    putArduinoToIdle();
 }
