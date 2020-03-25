@@ -1,13 +1,23 @@
 #include <serialize.h>
 #include <stdarg.h>
 #include <math.h>
+#include <avr/sleep.h>
 
 #include "packet.h"
 #include "constants.h"
 
+// W11S1 Power management
+#define PRR_TWI_MASK            0b10000000
+#define PRR_SPI_MASK            0b00000100
+#define ADCSRA_ADC_MASK         0b10000000
+#define PRR_ADC_MASK            0b00000001
+#define PRR_TIMER2_MASK         0b01000000
+#define PRR_TIMER0_MASK         0b00100000
+#define PRR_TIMER1_MASK         0b00001000
+#define SMCR_SLEEP_ENABLE_MASK  0b00000001
+#define SMCR_IDLE_MODE_MASK     0b11110001
 
 
-// TO EDIT ACTIVITY 4 STEP 4l
 // Alex's length and breadth in cm
 #define ALEX_LENGTH   11
 #define ALEX_BREADTH  6
@@ -45,7 +55,7 @@ volatile TDirection dir = STOP;
 
 #define PIN_2 (1 << 2)
 #define PIN_3 (1 << 3)
-//#define PIN_5 (1 << 5)
+#define PIN_5 (1 << 5)
 //#define PIN_6 (1 << 6)
 //#define PIN_10 (1 << 10)
 //#define PIN_11 (1 << 11)(wrong)
@@ -106,6 +116,63 @@ unsigned long newDist;
 // Variables to keep track of our turning angle
 unsigned long deltaTicks;
 unsigned long targetTicks;
+
+/*
+ * Watchdog Timer (WDT) from W11S1
+ */
+
+void WDT_off(void)
+{
+  /* Global interrupt should be turned OFF here if not
+  already done so */
+  /* Clear WDRF in MCUSR */
+  MCUSR &= ~(1<<WDRF);
+  /* Write logical one to WDCE and WDE */
+  /* Keep old prescaler setting to prevent unintentional
+  time-out */
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  /* Turn off WDT */
+  WDTCSR = 0x00;
+  /* Global interrupt should be turned ON here if
+  subsequent operations after calling this function do
+  not require turning off global interrupt */
+}
+
+void setupPowerSaving() {
+  // Turn off the Watchdog Timer
+  WDT_off();
+  // Modify PRR to shut down TWI
+  PRR |= PRR_TWI_MASK;
+  // Modify PRR to shut down SPI
+  PRR |= PRR_SPI_MASK;
+  // Modify ADCSRA to disable ADC,
+  // then modify PRR to shut down ADC
+  ADCSRA |= ADCSRA_ADC_MASK;
+  PRR |= PRR_ADC_MASK;
+  // Set the SMCR to choose the IDLE sleep mode
+  // Do not set the Sleep Enable (SE) bit yet
+  SMCR &= SMCR_IDLE_MODE_MASK;
+  // Set Port B Pin 5 as output pin, then write a logic LOW
+  // to it so that the LED tied to Arduino's Pin 13 is OFF.
+  DDRB |= PIN_5;
+  PORTB &= ~PIN_5;
+}
+
+void putArduinoToIdle()
+{
+ // Modify PRR to shut down TIMER 0, 1, and 2
+ PRR |= PRR_TIMER0_MASK | PRR_TIMER1_MASK | PRR_TIMER2_MASK;
+ // Modify SE bit in SMCR to enable (i.e., allow) sleep
+ SMCR |= SMCR_SLEEP_ENABLE_MASK;
+ // The following function puts ATmega328P’s MCU into sleep;
+ // it wakes up from sleep when USART serial data arrives
+ sleep_cpu();
+ // Modify SE bit in SMCR to disable (i.e., disallow) sleep
+ // Modify PRR to power up TIMER 0, 1, and 2
+ SMCR &= ~SMCR_SLEEP_ENABLE_MASK;
+ PRR &= ~(PRR_TIMER0_MASK | PRR_TIMER1_MASK | PRR_TIMER2_MASK);
+}
+
 
 /*
  * 
@@ -757,7 +824,7 @@ void loop() {
 //      rightMul = ratio > rightMul ? ratio : rightMul; 
       dbprint("\n\n%d\n\n", (int)(rightMul*100));
       stop();
-      
+      putArduinoToIdle();
       
     } 
   }
@@ -769,6 +836,7 @@ void loop() {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
+      putArduinoToIdle();
     }
   }
 }
