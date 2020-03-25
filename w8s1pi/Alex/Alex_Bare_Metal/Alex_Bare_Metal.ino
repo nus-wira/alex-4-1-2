@@ -94,13 +94,16 @@ unsigned long newDist;
 unsigned long deltaTicks;
 unsigned long targetTicks;
 
+/**
+ * Setup channel A and B of Timer 0 and 1.
+ */
 void setupPWM() {
   TCNT0 = 0;
   TCCR0A = 0b10100001;
-  TIMSK0 |= 0b110; // Enable Int for Output Compare Match
   OCR0A = 0;
   OCR0B = 0;
   TCCR0B = 0b00000001;
+  TIMSK0 |= 0b110;
   TCNT1 = 0;
   TCCR1A = 0b10100001;
   OCR1AH = 0;
@@ -108,10 +111,20 @@ void setupPWM() {
   OCR1BH = 0;
   OCR1BL = 0;
   TCCR1B = 0b00000001;
+  TIMSK1 |= 0b110;
+}
+
+/**
+ * Turns off Timer 2 and ADC module since they aren't used.
+ */
+void setupPRR() {
+  PRR |= 0b01000001;
 }
 
 
-
+/**
+ * Replicate analogWrite() functionality.
+ */
 void analog_Write(int portNum, int val) {
   switch (portNum) {
     case LR: 
@@ -348,7 +361,7 @@ void setupEINT()
 }
 
 // Implement the external interrupt ISRs below.
-// INT0 ISR should call leftISR while INT1 ISR
+// INT1 ISR should call leftISR while INT0 ISR
 // should call rightISR.
 ISR(INT1_vect) {
   leftISR();
@@ -455,13 +468,11 @@ void forward(float dist, float speed)
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-
-  OCR0A = val;
-  OCR0B = 0;
-//  analog_Write(LF, val);
-//  analog_Write(RF, val);
-//  analog_Write(LR,0);
-//  analog_Write(RR, 0);
+  
+  analog_Write(LF, val);
+  analog_Write(RF, val);
+  analog_Write(LR,0);
+  analog_Write(RR, 0);
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -707,6 +718,7 @@ void setup() {
                       (ALEX_BREADTH * ALEX_BREADTH));
   alexCirc = PI * alexDiagonal;
   cli();
+  setupPRR();
   setupEINT();
   setupSerial();
   startSerial();
@@ -719,8 +731,7 @@ void setup() {
 }
 
 void handlePacket(TPacket *packet)
-{ 
-  
+{
   switch(packet->packetType)
   {
     case PACKET_TYPE_COMMAND:
@@ -746,10 +757,7 @@ void loop() {
 
 // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
 
-////  forward(0, 100);
-//  OCR0A = 127;
-//
-//  OCR0B = 127;
+//  forward(0, 100);
 
 // Uncomment the code below for Week 9 Studio 2
 
@@ -758,7 +766,7 @@ void loop() {
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
-  dbprint("\n\nRECEIVED\n\n");
+  
   if(result == PACKET_OK)
     handlePacket(&recvPacket);
   else
@@ -792,3 +800,4 @@ void loop() {
     }
   }
 }
+
