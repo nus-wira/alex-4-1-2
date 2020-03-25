@@ -9,13 +9,8 @@
 
 // TO EDIT ACTIVITY 4 STEP 4l
 // Alex's length and breadth in cm
-#define ALEX_LENGTH   11
+#define ALEX_LENGTH   16
 #define ALEX_BREADTH  6
-
-// Multiplier since motors different speed
-#define RMUL          1.2 // Right multiplier
-#define RBUFF         0.1
-
 
 // Alex's diagonal. We compute and store this once
 // since it is expensive to compute and doesn't change.
@@ -23,9 +18,6 @@ float alexDiagonal=0.0;
 
 // Alex's turning circumference, calculated once
 float alexCirc = 0.0;
-
-float rightMul = RMUL;
-int diffTicks;
 
 typedef enum {
   STOP=0,
@@ -60,7 +52,6 @@ volatile TDirection dir = STOP;
 // by taking revs * WHEEL_CIRC
 
 #define WHEEL_CIRC          22
-#define ANGMUL              2.125
 
 // Motor control pins. You need to adjust these till
 // Alex moves in the correct direction
@@ -68,8 +59,6 @@ volatile TDirection dir = STOP;
 #define RR                  5   // Left reverse pin
 #define LF                  10  // Right forward pin
 #define LR                  9  // Right reverse pin
-
-
 
 /*
  *    Alex's State Variables
@@ -81,8 +70,6 @@ volatile unsigned long leftForwardTicks;
 volatile unsigned long rightForwardTicks;
 volatile unsigned long leftReverseTicks; 
 volatile unsigned long rightReverseTicks;
-
-unsigned long oldLeftTicks;
 
 // Left and right encoder ticks for turning
 volatile unsigned long leftForwardTicksTurns; 
@@ -106,6 +93,69 @@ unsigned long newDist;
 // Variables to keep track of our turning angle
 unsigned long deltaTicks;
 unsigned long targetTicks;
+
+void setupPWM() {
+  TCNT0 = 0;
+  TCCR0A = 0b10100001;
+  TIMSK0 |= 0b110; // Enable Int for Output Compare Match
+  OCR0A = 0;
+  OCR0B = 0;
+  TCCR0B = 0b00000001;
+  TCNT1 = 0;
+  TCCR1A = 0b10100001;
+  OCR1AH = 0;
+  OCR1AL = 0;
+  OCR1BH = 0;
+  OCR1BL = 0;
+  TCCR1B = 0b00000001;
+}
+
+
+
+void analog_Write(int portNum, int val) {
+  switch (portNum) {
+    case LR: 
+      OCR1AH = 0;
+      OCR1AL = val;
+      break;
+    case LF:
+      OCR1BH = 0;
+      OCR1BL = val;
+      break;
+    case RR:
+      OCR0B = val;
+      break;
+    case RF:
+      OCR0A = val;
+      break;  
+  }
+}
+
+/*
+ * Alex's motor drivers.
+ * 
+ */
+
+// Set up Alex's motors. Right now this is empty, but
+// later you will replace it with code to set up the PWMs
+// to drive the motors.
+void setupMotors()
+{
+  /* Our motor set up is:  
+   *    A1IN - Pin 5, PD5, OC0B
+   *    A2IN - Pin 6, PD6, OC0A
+   *    B1IN - Pin 10, PB2, OC1B
+   *    B2In - Pin 9, PB1, OC1A
+   */
+   /*
+   pinMode(5, OUTPUT);
+   pinMode(6, OUTPUT);
+   pinMode(10, OUTPUT);
+   pinMode(9, OUTPUT);*/
+   DDRD |= 0b01100000;
+   DDRB |= 0b00000110;
+}
+
 
 /*
  * 
@@ -357,27 +407,7 @@ void writeSerial(const char *buffer, int len)
   Serial.write(buffer, len);
 }
 
-/*
- * Alex's motor drivers.
- * 
- */
 
-// Set up Alex's motors. Right now this is empty, but
-// later you will replace it with code to set up the PWMs
-// to drive the motors.
-void setupMotors()
-{
-  /* Our motor set up is:  
-   *    A1IN - Pin 5, PD5, OC0B
-   *    A2IN - Pin 6, PD6, OC0A
-   *    B1IN - Pin 10, PB2, OC1B
-   *    B2In - pIN 11, PB3, OC2A
-   */
-   pinMode(RR, OUTPUT);
-   pinMode(RF, OUTPUT);
-   pinMode(LF, OUTPUT);
-   pinMode(LR, OUTPUT);
-}
 
 // Start the PWM for Alex's motors.
 // We will implement this later. For now it is
@@ -411,13 +441,13 @@ void forward(float dist, float speed)
     deltaDist = 999999;
   else
     deltaDist = dist;
+
   newDist = forwardDist + deltaDist;
   
   dir = FORWARD;
   
   int val = pwmVal(speed);
 
-  oldLeftTicks = leftForwardTicks;
   // For now we will ignore dist and move
   // forward indefinitely. We will fix this
   // in Week 9.
@@ -425,11 +455,13 @@ void forward(float dist, float speed)
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  
-  analogWrite(LF, val );
-  analogWrite(RF, val * rightMul);
-  analogWrite(LR,0);
-  analogWrite(RR, 0);
+
+  OCR0A = val;
+  OCR0B = 0;
+//  analog_Write(LF, val);
+//  analog_Write(RF, val);
+//  analog_Write(LR,0);
+//  analog_Write(RR, 0);
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -451,8 +483,6 @@ void reverse(float dist, float speed)
   
   int val = pwmVal(speed);
 
-  oldLeftTicks = leftReverseTicks;
-
   // For now we will ignore dist and 
   // reverse indefinitely. We will fix this
   // in Week 9.
@@ -460,10 +490,10 @@ void reverse(float dist, float speed)
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  analogWrite(LR, val);
-  analogWrite(RR, val * rightMul);
-  analogWrite(LF, 0);
-  analogWrite(RF, 0);
+  analog_Write(LR, val);
+  analog_Write(RR, val);
+  analog_Write(LF, 0);
+  analog_Write(RF, 0);
 }
 
 // New function to estimate number of wheel ticks
@@ -481,7 +511,7 @@ unsigned long computeDeltaTicks(float ang)
    *  To convert to ticks, we multiply by COUNTS_PER_REV
    */
   unsigned long ticks = (unsigned long) ((ang * alexCirc * COUNTS_PER_REV) /
-                                         (360.0 * WHEEL_CIRC * ANGMUL));
+                                         (360.0 * WHEEL_CIRC));
 
   return ticks;
   
@@ -509,10 +539,10 @@ void left(float ang, float speed)
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
   // the right wheel forward.
-  analogWrite(LR, val);
-  analogWrite(RF, val * rightMul);
-  analogWrite(LF, 0);
-  analogWrite(RR, 0);
+  analog_Write(LR, val);
+  analog_Write(RF, val);
+  analog_Write(LF, 0);
+  analog_Write(RR, 0);
 }
 
 // Turn Alex right "ang" degrees at speed "speed".
@@ -537,10 +567,10 @@ void right(float ang, float speed)
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
-  analogWrite(RR, val * rightMul);
-  analogWrite(LF, val);
-  analogWrite(LR, 0);
-  analogWrite(RF, 0);
+  analog_Write(RR, val);
+  analog_Write(LF, val);
+  analog_Write(LR, 0);
+  analog_Write(RF, 0);
 }
 
 // Stop Alex. To replace with bare-metal code later.
@@ -548,10 +578,10 @@ void stop()
 {
   dir = STOP;
   
-  analogWrite(LF, 0);
-  analogWrite(LR, 0);
-  analogWrite(RF, 0);
-  analogWrite(RR, 0);
+  analog_Write(LF, 0);
+  analog_Write(LR, 0);
+  analog_Write(RF, 0);
+  analog_Write(RR, 0);
 }
 
 /*
@@ -562,8 +592,7 @@ void stop()
 //To edit to specify which counter to clear
 // Clears all our counters
 void clearCounters()
-{ 
-  rightMul = RMUL;
+{
   leftForwardTicks=0;
   rightForwardTicks=0;
   leftReverseTicks=0;
@@ -643,6 +672,7 @@ void waitForHello()
   {
     TPacket hello;
     TResult result;
+    
     do
     {
       result = readPacket(&hello);
@@ -682,13 +712,15 @@ void setup() {
   startSerial();
   setupMotors();
   startMotors();
+  setupPWM();
   enablePullups();
   initializeState();
   sei();
 }
 
 void handlePacket(TPacket *packet)
-{
+{ 
+  
   switch(packet->packetType)
   {
     case PACKET_TYPE_COMMAND:
@@ -714,7 +746,10 @@ void loop() {
 
 // Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
 
-//  forward(0, 100);
+////  forward(0, 100);
+//  OCR0A = 127;
+//
+//  OCR0B = 127;
 
 // Uncomment the code below for Week 9 Studio 2
 
@@ -723,7 +758,7 @@ void loop() {
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
-  
+  dbprint("\n\nRECEIVED\n\n");
   if(result == PACKET_OK)
     handlePacket(&recvPacket);
   else
@@ -736,30 +771,15 @@ void loop() {
       {
         sendBadChecksum();
       } 
-  
+      
   if(deltaDist > 0) {
     if((dir==FORWARD && forwardDist > newDist) ||
        (dir==BACKWARD && reverseDist > newDist) ||
        (dir==STOP)) {
       deltaDist=0;
       newDist=0;
-      if (dir==FORWARD) {
-        diffTicks = leftForwardTicks - oldLeftTicks;
-        rightMul = (float) (diffTicks + leftForwardTicks - rightForwardTicks) / 
-                   (float) (diffTicks);
-        
-      } else if (dir==BACKWARD) {
-        diffTicks = leftReverseTicks - oldLeftTicks;
-        rightMul = (float) (diffTicks + leftReverseTicks - rightReverseTicks) / 
-                   (float) (diffTicks);
-      }
-      rightMul += RBUFF;
-//      rightMul = ratio > rightMul ? ratio : rightMul; 
-      dbprint("\n\n%d\n\n", (int)(rightMul*100));
       stop();
-      
-      
-    } 
+    }
   }
   
   if (deltaTicks > 0) {
