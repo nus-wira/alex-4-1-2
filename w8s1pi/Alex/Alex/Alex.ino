@@ -190,7 +190,7 @@ TResult readPacket(TPacket *packet)
     int len;
 
     len = readSerial(buffer);
-
+    
     if(len == 0)
       return PACKET_INCOMPLETE;
     else
@@ -387,6 +387,7 @@ ISR(INT0_vect) {
 void setupSerial()
 {
   // To replace later with bare-metal.
+//  Serial.begin(57600);
   Serial.begin(9600);
 }
 
@@ -784,7 +785,7 @@ void loop() {
 //  forward(0, 100);
 
 // Uncomment the code below for Week 9 Studio 2
-
+//  dbprint("\n\nTESTING\n\n");
 
  // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi

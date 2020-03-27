@@ -377,9 +377,121 @@ ISR(INT0_vect) {
  * Setup and start codes for serial communications
  * 
  */
+/*
+ * Setup and start codes for serial communications
+ * 
+ */
 // Set up the serial connection. For now we are using 
 // Arduino Wiring, you will replace this later
 // with bare-metal code.
+void setupSerial()
+{
+  // Set up the 115200 8N1 when using
+  // Serial Monitor to test
+ 
+  // Change to 115200 7E1 when
+  // communicating between Arduinos.
+
+  // b = round(16000000 / (16*9600)) - 1 = 103
+  // 103 < 255, load directly into UBRR0L,
+  // while setting UBRR0H to 0
+
+  UBRR0L = 103;
+  UBRR0H = 0;
+
+  /*
+  Asynchronous -> USCR0C[7:6] 00
+  No parity -> USCR0C[5:4] 00
+  1 stop bit -> UCSR0C[3] 0
+  8 bits -> UCSZ0[2:0] 011
+  UCSZ0 [1:0] corresponds to UCSR0C[2:1]
+  -> USCR0C[2:1] 11
+  bit 0 (UCPOL0) is always 0
+  */
+  
+  UCSR0C = 0b00000110;
+  /**/
+  /*
+  For Arduino,
+  Even parity -> UCSR0C[5:4] 10
+  7 bits -> UCSZ0[2:0] 010
+  */
+  /*
+  UCSR0C = 0b00100100;
+  /**/
+
+  /* 
+  Zero everything in UCSR0A, espy U2X0 and MPCM0 
+  to ensure we are not in double speed mode and 
+  are also not in multiprocessor mode, 
+  which will discard frames without addresses 
+  */
+  UCSR0A = 0;
+  
+}
+
+// Start the serial connection. For now we are using
+// Arduino wiring and this function is empty. We will
+// replace this later with bare-metal code.
+
+void startSerial()
+{
+  // Start the serial port.
+  // Enable RXC interrupt, but NOT UDRIE
+  // Remember to enable the receiver
+  // and transmitter
+  /*
+  Once we set RXEN0 and TXEN0 (bits 4 and 3),
+  we will start the UART.
+  Hence, place setup for UCSR0B in separate
+  startSerial function.
+  Using UDRE and RXC interrupts, so set RXCIE0 (bit 7)
+  and UDRIE0 (bit 5) to 1.
+  Disable TXCIE0 at bit 6.
+  -> [7:5] 101
+  Enable receiver and transmitter resp. -> [4:3] 11
+  Bit 2 corresponds to UCSZ02 -> [2] 0 (See USCR0C)
+  RXB80 and TXB80 are always 00 since not using 9-bit
+  -> [1:0] 00
+  We will use UDR0 empty interrupt for transmitting,
+  but for now set UDRIE0 to 0.
+  */
+  UCSR0B = 0b10111000;
+}
+
+// Read the serial port. Returns the read character in
+// ch if available. Also returns TRUE if ch is valid. 
+// This will be replaced later with bare-metal code.
+
+int readSerial(char *buffer)
+{
+
+  int count=0;
+  int MAX_BUFFER_LENGTH = PACKET_SIZE;
+
+  while(MAX_BUFFER_LENGTH--) {
+  while((UCSR0A & 0b10000000) == 0);
+    buffer[count++] = UDR0;
+  }
+  return count;
+}
+
+// Write to the serial port. Replaced later with
+// bare-metal code
+
+void writeSerial(const char *buffer, int len)
+{
+  for(int idx = 0; idx < len; idx++){
+    while((UCSR0A & 0b00100000) == 0);
+    UDR0 = buffer[idx];
+    UCSR0B |= 0b00100000;
+  }
+  UCSR0B &= ~(0b00100000);
+}
+// Set up the serial connection. For now we are using 
+// Arduino Wiring, you will replace this later
+// with bare-metal code.
+/*
 void setupSerial()
 {
   // To replace later with bare-metal.
@@ -419,7 +531,7 @@ void writeSerial(const char *buffer, int len)
 {
   Serial.write(buffer, len);
 }
-
+*/
 
 
 // Start the PWM for Alex's motors.
