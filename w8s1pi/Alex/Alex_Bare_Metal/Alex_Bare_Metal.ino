@@ -456,7 +456,7 @@ void startSerial()
   We will use UDR0 empty interrupt for transmitting,
   but for now set UDRIE0 to 0.
   */
-  UCSR0B = 0b10111000;
+  UCSR0B = 0b00011000;
 }
 
 // Read the serial port. Returns the read character in
