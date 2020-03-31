@@ -1,31 +1,16 @@
 #include <serialize.h>
 #include <stdarg.h>
 #include <math.h>
-#include <avr/sleep.h>
 
 #include "packet.h"
 #include "constants.h"
 
-// W11S1 Power management
-#define PRR_TWI_MASK            0b10000000
-#define PRR_SPI_MASK            0b00000100
-#define ADCSRA_ADC_MASK         0b10000000
-#define PRR_ADC_MASK            0b00000001
-#define PRR_TIMER2_MASK         0b01000000
-#define PRR_TIMER0_MASK         0b00100000
-#define PRR_TIMER1_MASK         0b00001000
-#define SMCR_SLEEP_ENABLE_MASK  0b00000001
-#define SMCR_IDLE_MODE_MASK     0b11110001
 
 
+// TO EDIT ACTIVITY 4 STEP 4l
 // Alex's length and breadth in cm
-#define ALEX_LENGTH   11
+#define ALEX_LENGTH   16
 #define ALEX_BREADTH  6
-
-// Multiplier since motors different speed
-#define RMUL          1.2 // Right multiplier
-#define RBUFF         0.1
-
 
 // Alex's diagonal. We compute and store this once
 // since it is expensive to compute and doesn't change.
@@ -33,9 +18,6 @@ float alexDiagonal=0.0;
 
 // Alex's turning circumference, calculated once
 float alexCirc = 0.0;
-
-float rightMul = RMUL;
-int diffTicks;
 
 typedef enum {
   STOP=0,
@@ -55,7 +37,7 @@ volatile TDirection dir = STOP;
 
 #define PIN_2 (1 << 2)
 #define PIN_3 (1 << 3)
-#define PIN_5 (1 << 5)
+//#define PIN_5 (1 << 5)
 //#define PIN_6 (1 << 6)
 //#define PIN_10 (1 << 10)
 //#define PIN_11 (1 << 11)(wrong)
@@ -70,7 +52,6 @@ volatile TDirection dir = STOP;
 // by taking revs * WHEEL_CIRC
 
 #define WHEEL_CIRC          22
-#define ANGMUL              2.125
 
 // Motor control pins. You need to adjust these till
 // Alex moves in the correct direction
@@ -78,8 +59,6 @@ volatile TDirection dir = STOP;
 #define RR                  5   // Left reverse pin
 #define LF                  10  // Right forward pin
 #define LR                  9  // Right reverse pin
-
-
 
 /*
  *    Alex's State Variables
@@ -91,8 +70,6 @@ volatile unsigned long leftForwardTicks;
 volatile unsigned long rightForwardTicks;
 volatile unsigned long leftReverseTicks; 
 volatile unsigned long rightReverseTicks;
-
-unsigned long oldLeftTicks;
 
 // Left and right encoder ticks for turning
 volatile unsigned long leftForwardTicksTurns; 
@@ -117,60 +94,79 @@ unsigned long newDist;
 unsigned long deltaTicks;
 unsigned long targetTicks;
 
+/**
+ * Setup channel A and B of Timer 0 and 1.
+ */
+void setupPWM() {
+  TCNT0 = 0;
+  TCCR0A = 0b10100001;
+  OCR0A = 0;
+  OCR0B = 0;
+  TCCR0B = 0b00000001;
+  TIMSK0 |= 0b110;
+  TCNT1 = 0;
+  TCCR1A = 0b10100001;
+  OCR1AH = 0;
+  OCR1AL = 0;
+  OCR1BH = 0;
+  OCR1BL = 0;
+  TCCR1B = 0b00000001;
+  TIMSK1 |= 0b110;
+}
+
+/**
+ * Turns off Timer 2 and ADC module since they aren't used.
+ */
+void setupPRR() {
+  PRR |= 0b01000001;
+}
+
+
+/**
+ * Replicate analogWrite() functionality.
+ */
+void analog_Write(int portNum, int val) {
+  switch (portNum) {
+    case LR: 
+      OCR1AH = 0;
+      OCR1AL = val;
+      break;
+    case LF:
+      OCR1BH = 0;
+      OCR1BL = val;
+      break;
+    case RR:
+      OCR0B = val;
+      break;
+    case RF:
+      OCR0A = val;
+      break;  
+  }
+}
+
 /*
- * Watchdog Timer (WDT) from W11S1
+ * Alex's motor drivers.
+ * 
  */
 
-void WDT_off(void)
+// Set up Alex's motors. Right now this is empty, but
+// later you will replace it with code to set up the PWMs
+// to drive the motors.
+void setupMotors()
 {
-  /* Global interrupt should be turned OFF here if not
-  already done so */
-  /* Clear WDRF in MCUSR */
-  MCUSR &= ~(1<<WDRF);
-  /* Write logical one to WDCE and WDE */
-  /* Keep old prescaler setting to prevent unintentional
-  time-out */
-  WDTCSR |= (1<<WDCE) | (1<<WDE);
-  /* Turn off WDT */
-  WDTCSR = 0x00;
-  /* Global interrupt should be turned ON here if
-  subsequent operations after calling this function do
-  not require turning off global interrupt */
-}
-
-void setupPowerSaving() {
-  // Turn off the Watchdog Timer
-  WDT_off();
-  // Modify PRR to shut down TWI
-  PRR |= PRR_TWI_MASK;
-  // Modify PRR to shut down SPI
-  PRR |= PRR_SPI_MASK;
-  // Modify ADCSRA to disable ADC,
-  // then modify PRR to shut down ADC
-  ADCSRA |= ADCSRA_ADC_MASK;
-  PRR |= PRR_ADC_MASK;
-  // Set the SMCR to choose the IDLE sleep mode
-  // Do not set the Sleep Enable (SE) bit yet
-  SMCR &= SMCR_IDLE_MODE_MASK;
-  // Set Port B Pin 5 as output pin, then write a logic LOW
-  // to it so that the LED tied to Arduino's Pin 13 is OFF.
-  DDRB |= PIN_5;
-  PORTB &= ~PIN_5;
-}
-
-void putArduinoToIdle()
-{
- // Modify PRR to shut down TIMER 0, 1, and 2
- PRR |= PRR_TIMER0_MASK | PRR_TIMER1_MASK | PRR_TIMER2_MASK;
- // Modify SE bit in SMCR to enable (i.e., allow) sleep
- SMCR |= SMCR_SLEEP_ENABLE_MASK;
- // The following function puts ATmega328P’s MCU into sleep;
- // it wakes up from sleep when USART serial data arrives
- sleep_cpu();
- // Modify SE bit in SMCR to disable (i.e., disallow) sleep
- // Modify PRR to power up TIMER 0, 1, and 2
- SMCR &= ~SMCR_SLEEP_ENABLE_MASK;
- PRR &= ~(PRR_TIMER0_MASK | PRR_TIMER1_MASK | PRR_TIMER2_MASK);
+  /* Our motor set up is:  
+   *    A1IN - Pin 5, PD5, OC0B
+   *    A2IN - Pin 6, PD6, OC0A
+   *    B1IN - Pin 10, PB2, OC1B
+   *    B2In - Pin 9, PB1, OC1A
+   */
+   /*
+   pinMode(5, OUTPUT);
+   pinMode(6, OUTPUT);
+   pinMode(10, OUTPUT);
+   pinMode(9, OUTPUT);*/
+   DDRD |= 0b01100000;
+   DDRB |= 0b00000110;
 }
 
 
@@ -190,7 +186,7 @@ TResult readPacket(TPacket *packet)
     int len;
 
     len = readSerial(buffer);
-    
+
     if(len == 0)
       return PACKET_INCOMPLETE;
     else
@@ -365,7 +361,7 @@ void setupEINT()
 }
 
 // Implement the external interrupt ISRs below.
-// INT0 ISR should call leftISR while INT1 ISR
+// INT1 ISR should call leftISR while INT0 ISR
 // should call rightISR.
 ISR(INT1_vect) {
   leftISR();
@@ -381,13 +377,124 @@ ISR(INT0_vect) {
  * Setup and start codes for serial communications
  * 
  */
+/*
+ * Setup and start codes for serial communications
+ * 
+ */
 // Set up the serial connection. For now we are using 
 // Arduino Wiring, you will replace this later
 // with bare-metal code.
 void setupSerial()
 {
+  // Set up the 115200 8N1 when using
+  // Serial Monitor to test
+ 
+  // Change to 115200 7E1 when
+  // communicating between Arduinos.
+
+  // b = round(16000000 / (16*9600)) - 1 = 103
+  // 103 < 255, load directly into UBRR0L,
+  // while setting UBRR0H to 0
+
+  UBRR0L = 103;
+  UBRR0H = 0;
+
+  /*
+  Asynchronous -> USCR0C[7:6] 00
+  No parity -> USCR0C[5:4] 00
+  1 stop bit -> UCSR0C[3] 0
+  8 bits -> UCSZ0[2:0] 011
+  UCSZ0 [1:0] corresponds to UCSR0C[2:1]
+  -> USCR0C[2:1] 11
+  bit 0 (UCPOL0) is always 0
+  */
+  
+  UCSR0C = 0b00000110;
+  /**/
+  /*
+  For Arduino,
+  Even parity -> UCSR0C[5:4] 10
+  7 bits -> UCSZ0[2:0] 010
+  */
+  /*
+  UCSR0C = 0b00100100;
+  /**/
+
+  /* 
+  Zero everything in UCSR0A, espy U2X0 and MPCM0 
+  to ensure we are not in double speed mode and 
+  are also not in multiprocessor mode, 
+  which will discard frames without addresses 
+  */
+  UCSR0A = 0;
+  
+}
+
+// Start the serial connection. For now we are using
+// Arduino wiring and this function is empty. We will
+// replace this later with bare-metal code.
+
+void startSerial()
+{
+  // Start the serial port.
+  // Enable RXC interrupt, but NOT UDRIE
+  // Remember to enable the receiver
+  // and transmitter
+  /*
+  Once we set RXEN0 and TXEN0 (bits 4 and 3),
+  we will start the UART.
+  Hence, place setup for UCSR0B in separate
+  startSerial function.
+  Using UDRE and RXC interrupts, so set RXCIE0 (bit 7)
+  and UDRIE0 (bit 5) to 1.
+  Disable TXCIE0 at bit 6.
+  -> [7:5] 101
+  Enable receiver and transmitter resp. -> [4:3] 11
+  Bit 2 corresponds to UCSZ02 -> [2] 0 (See USCR0C)
+  RXB80 and TXB80 are always 00 since not using 9-bit
+  -> [1:0] 00
+  We will use UDR0 empty interrupt for transmitting,
+  but for now set UDRIE0 to 0.
+  */
+  UCSR0B = 0b00011000;
+}
+
+// Read the serial port. Returns the read character in
+// ch if available. Also returns TRUE if ch is valid. 
+// This will be replaced later with bare-metal code.
+
+int readSerial(char *buffer)
+{
+
+  int count=0;
+  int MAX_BUFFER_LENGTH = PACKET_SIZE;
+
+  while(MAX_BUFFER_LENGTH--) {
+  while((UCSR0A & 0b10000000) == 0);
+    buffer[count++] = UDR0;
+  }
+  return count;
+}
+
+// Write to the serial port. Replaced later with
+// bare-metal code
+
+void writeSerial(const char *buffer, int len)
+{
+  for(int idx = 0; idx < len; idx++){
+    while((UCSR0A & 0b00100000) == 0);
+    UDR0 = buffer[idx];
+    UCSR0B |= 0b00100000;
+  }
+  UCSR0B &= ~(0b00100000);
+}
+// Set up the serial connection. For now we are using 
+// Arduino Wiring, you will replace this later
+// with bare-metal code.
+/*
+void setupSerial()
+{
   // To replace later with bare-metal.
-//  Serial.begin(57600);
   Serial.begin(9600);
 }
 
@@ -424,28 +531,8 @@ void writeSerial(const char *buffer, int len)
 {
   Serial.write(buffer, len);
 }
+*/
 
-/*
- * Alex's motor drivers.
- * 
- */
-
-// Set up Alex's motors. Right now this is empty, but
-// later you will replace it with code to set up the PWMs
-// to drive the motors.
-void setupMotors()
-{
-  /* Our motor set up is:  
-   *    A1IN - Pin 5, PD5, OC0B
-   *    A2IN - Pin 6, PD6, OC0A
-   *    B1IN - Pin 10, PB2, OC1B
-   *    B2In - pIN 11, PB3, OC2A
-   */
-   pinMode(RR, OUTPUT);
-   pinMode(RF, OUTPUT);
-   pinMode(LF, OUTPUT);
-   pinMode(LR, OUTPUT);
-}
 
 // Start the PWM for Alex's motors.
 // We will implement this later. For now it is
@@ -479,13 +566,13 @@ void forward(float dist, float speed)
     deltaDist = 999999;
   else
     deltaDist = dist;
+
   newDist = forwardDist + deltaDist;
   
   dir = FORWARD;
   
   int val = pwmVal(speed);
 
-  oldLeftTicks = leftForwardTicks;
   // For now we will ignore dist and move
   // forward indefinitely. We will fix this
   // in Week 9.
@@ -494,10 +581,10 @@ void forward(float dist, float speed)
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
   
-  analogWrite(LF, val );
-  analogWrite(RF, val * rightMul);
-  analogWrite(LR,0);
-  analogWrite(RR, 0);
+  analog_Write(LF, val);
+  analog_Write(RF, val);
+  analog_Write(LR,0);
+  analog_Write(RR, 0);
 }
 
 // Reverse Alex "dist" cm at speed "speed".
@@ -519,8 +606,6 @@ void reverse(float dist, float speed)
   
   int val = pwmVal(speed);
 
-  oldLeftTicks = leftReverseTicks;
-
   // For now we will ignore dist and 
   // reverse indefinitely. We will fix this
   // in Week 9.
@@ -528,10 +613,10 @@ void reverse(float dist, float speed)
   // LF = Left forward pin, LR = Left reverse pin
   // RF = Right forward pin, RR = Right reverse pin
   // This will be replaced later with bare-metal code.
-  analogWrite(LR, val);
-  analogWrite(RR, val * rightMul);
-  analogWrite(LF, 0);
-  analogWrite(RF, 0);
+  analog_Write(LR, val);
+  analog_Write(RR, val);
+  analog_Write(LF, 0);
+  analog_Write(RF, 0);
 }
 
 // New function to estimate number of wheel ticks
@@ -549,7 +634,7 @@ unsigned long computeDeltaTicks(float ang)
    *  To convert to ticks, we multiply by COUNTS_PER_REV
    */
   unsigned long ticks = (unsigned long) ((ang * alexCirc * COUNTS_PER_REV) /
-                                         (360.0 * WHEEL_CIRC * ANGMUL));
+                                         (360.0 * WHEEL_CIRC));
 
   return ticks;
   
@@ -577,10 +662,10 @@ void left(float ang, float speed)
   // We will also replace this code with bare-metal later.
   // To turn left we reverse the left wheel and move
   // the right wheel forward.
-  analogWrite(LR, val);
-  analogWrite(RF, val * rightMul);
-  analogWrite(LF, 0);
-  analogWrite(RR, 0);
+  analog_Write(LR, val);
+  analog_Write(RF, val);
+  analog_Write(LF, 0);
+  analog_Write(RR, 0);
 }
 
 // Turn Alex right "ang" degrees at speed "speed".
@@ -605,10 +690,10 @@ void right(float ang, float speed)
   // We will also replace this code with bare-metal later.
   // To turn right we reverse the right wheel and move
   // the left wheel forward.
-  analogWrite(RR, val * rightMul);
-  analogWrite(LF, val);
-  analogWrite(LR, 0);
-  analogWrite(RF, 0);
+  analog_Write(RR, val);
+  analog_Write(LF, val);
+  analog_Write(LR, 0);
+  analog_Write(RF, 0);
 }
 
 // Stop Alex. To replace with bare-metal code later.
@@ -616,10 +701,10 @@ void stop()
 {
   dir = STOP;
   
-  analogWrite(LF, 0);
-  analogWrite(LR, 0);
-  analogWrite(RF, 0);
-  analogWrite(RR, 0);
+  analog_Write(LF, 0);
+  analog_Write(LR, 0);
+  analog_Write(RF, 0);
+  analog_Write(RR, 0);
 }
 
 /*
@@ -630,8 +715,7 @@ void stop()
 //To edit to specify which counter to clear
 // Clears all our counters
 void clearCounters()
-{ 
-  rightMul = RMUL;
+{
   leftForwardTicks=0;
   rightForwardTicks=0;
   leftReverseTicks=0;
@@ -711,6 +795,7 @@ void waitForHello()
   {
     TPacket hello;
     TResult result;
+    
     do
     {
       result = readPacket(&hello);
@@ -745,11 +830,13 @@ void setup() {
                       (ALEX_BREADTH * ALEX_BREADTH));
   alexCirc = PI * alexDiagonal;
   cli();
+  setupPRR();
   setupEINT();
   setupSerial();
   startSerial();
   setupMotors();
   startMotors();
+  setupPWM();
   enablePullups();
   initializeState();
   sei();
@@ -785,7 +872,7 @@ void loop() {
 //  forward(0, 100);
 
 // Uncomment the code below for Week 9 Studio 2
-//  dbprint("\n\nTESTING\n\n");
+
 
  // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi
@@ -803,32 +890,16 @@ void loop() {
       if(result == PACKET_CHECKSUM_BAD)
       {
         sendBadChecksum();
-      }
-
-  
+      } 
+      
   if(deltaDist > 0) {
     if((dir==FORWARD && forwardDist > newDist) ||
        (dir==BACKWARD && reverseDist > newDist) ||
        (dir==STOP)) {
       deltaDist=0;
       newDist=0;
-      if (dir==FORWARD) {
-        diffTicks = leftForwardTicks - oldLeftTicks;
-        rightMul = (float) (diffTicks + leftForwardTicks - rightForwardTicks) / 
-                   (float) (diffTicks);
-        
-      } else if (dir==BACKWARD) {
-        diffTicks = leftReverseTicks - oldLeftTicks;
-        rightMul = (float) (diffTicks + leftReverseTicks - rightReverseTicks) / 
-                   (float) (diffTicks);
-      }
-      rightMul += RBUFF;
-//      rightMul = ratio > rightMul ? ratio : rightMul; 
-      dbprint("\n\n%d\n\n", (int)(rightMul*100));
       stop();
-//      putArduinoToIdle();
-      
-    } 
+    }
   }
   
   if (deltaTicks > 0) {
@@ -838,10 +909,7 @@ void loop() {
       deltaTicks = 0;
       targetTicks = 0;
       stop();
-//      putArduinoToIdle();
     }
   }
-
-//  if (result == PACKET_INCOMPLETE && dir == STOP)
-//    putArduinoToIdle();
 }
+
