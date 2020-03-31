@@ -448,13 +448,13 @@ void startSerial()
 // ch if available. Also returns TRUE if ch is valid. 
 // This will be replaced later with bare-metal code.
 
-int readSerial(char *buffer)
+int readSerial(unsigned char *buffer)
 {
 
   int count=0;
 
   while(dataAvailable(buf))
-    readBuffer(buf, buffer + count);
+    readBuffer(buf, buffer + count++);
 
   return count;
 }
@@ -462,7 +462,7 @@ int readSerial(char *buffer)
 // Write to the serial port. Replaced later with
 // bare-metal code
 
-void writeSerial(const char *buffer, int len)
+void writeSerial(unsigned const char *buffer, int len)
 {
   for(int i=0; i<len;i++)
     writeBuffer(buf, buffer + i);
