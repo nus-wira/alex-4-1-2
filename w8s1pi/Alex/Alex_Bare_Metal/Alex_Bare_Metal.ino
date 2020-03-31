@@ -1,3 +1,4 @@
+#include <buffer.h>
 #include <serialize.h>
 #include <stdarg.h>
 #include <math.h>
@@ -5,7 +6,7 @@
 #include "packet.h"
 #include "constants.h"
 
-
+TBuffer *buf;
 
 // TO EDIT ACTIVITY 4 STEP 4l
 // Alex's length and breadth in cm
@@ -436,76 +437,10 @@ void setupSerial()
 
 void startSerial()
 {
-  // Start the serial port.
-  // Enable RXC interrupt, but NOT UDRIE
-  // Remember to enable the receiver
-  // and transmitter
-  /*
-  Once we set RXEN0 and TXEN0 (bits 4 and 3),
-  we will start the UART.
-  Hence, place setup for UCSR0B in separate
-  startSerial function.
-  Using UDRE and RXC interrupts, so set RXCIE0 (bit 7)
-  and UDRIE0 (bit 5) to 1.
-  Disable TXCIE0 at bit 6.
-  -> [7:5] 101
-  Enable receiver and transmitter resp. -> [4:3] 11
-  Bit 2 corresponds to UCSZ02 -> [2] 0 (See USCR0C)
-  RXB80 and TXB80 are always 00 since not using 9-bit
-  -> [1:0] 00
-  We will use UDR0 empty interrupt for transmitting,
-  but for now set UDRIE0 to 0.
-  */
-  UCSR0B = 0b00011000;
-}
-
-// Read the serial port. Returns the read character in
-// ch if available. Also returns TRUE if ch is valid. 
-// This will be replaced later with bare-metal code.
-
-int readSerial(char *buffer)
-{
-
-  int count=0;
-  int MAX_BUFFER_LENGTH = PACKET_SIZE;
-
-  while(MAX_BUFFER_LENGTH--) {
-  while((UCSR0A & 0b10000000) == 0);
-    buffer[count++] = UDR0;
-  }
-  return count;
-}
-
-// Write to the serial port. Replaced later with
-// bare-metal code
-
-void writeSerial(const char *buffer, int len)
-{
-  for(int idx = 0; idx < len; idx++){
-    while((UCSR0A & 0b00100000) == 0);
-    UDR0 = buffer[idx];
-    UCSR0B |= 0b00100000;
-  }
-  UCSR0B &= ~(0b00100000);
-}
-// Set up the serial connection. For now we are using 
-// Arduino Wiring, you will replace this later
-// with bare-metal code.
-/*
-void setupSerial()
-{
-  // To replace later with bare-metal.
-  Serial.begin(9600);
-}
-
-// Start the serial connection. For now we are using
-// Arduino wiring and this function is empty. We will
-// replace this later with bare-metal code.
-
-void startSerial()
-{
   // Empty for now. To be replaced with bare-metal code
   // later on.
+  UCSR0B = 0b00011000;
+  initBuffer(buf, 1000);
   
 }
 
@@ -518,8 +453,8 @@ int readSerial(char *buffer)
 
   int count=0;
 
-  while(Serial.available())
-    buffer[count++] = Serial.read();
+  while(dataAvailable(buf))
+    readBuffer(buf, buffer + count);
 
   return count;
 }
@@ -529,9 +464,10 @@ int readSerial(char *buffer)
 
 void writeSerial(const char *buffer, int len)
 {
-  Serial.write(buffer, len);
+  for(int i=0; i<len;i++)
+    writeBuffer(buf, buffer + i);
 }
-*/
+
 
 
 // Start the PWM for Alex's motors.
@@ -867,14 +803,6 @@ void handlePacket(TPacket *packet)
 
 void loop() {
 
-// Uncomment the code below for Step 2 of Activity 3 in Week 8 Studio 2
-
-//  forward(0, 100);
-
-// Uncomment the code below for Week 9 Studio 2
-
-
- // put your main code here, to run repeatedly:
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
@@ -912,4 +840,3 @@ void loop() {
     }
   }
 }
-
