@@ -745,6 +745,7 @@ void setup() {
                       (ALEX_BREADTH * ALEX_BREADTH));
   alexCirc = PI * alexDiagonal;
   cli();
+  setupPowerSaving();
   setupEINT();
   setupSerial();
   startSerial();
@@ -842,6 +843,6 @@ void loop() {
     }
   }
 
-//  if (result == PACKET_INCOMPLETE && dir == STOP)
-//    putArduinoToIdle();
+  if (result == PACKET_INCOMPLETE && dir == STOP)
+    putArduinoToIdle();
 }
