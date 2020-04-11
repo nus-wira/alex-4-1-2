@@ -77,7 +77,7 @@ volatile TDirection dir = STOP;
 #define RF                  6   // Left forward pin
 #define RR                  5   // Left reverse pin
 #define LF                  10  // Right forward pin
-#define LR                  9  // Right reverse pin
+#define LR                  11  // Right reverse pin
 
 
 
@@ -789,6 +789,7 @@ void loop() {
 //  dbprint("\n\nTESTING\n\n");
 
  // put your main code here, to run repeatedly:
+  waitForHello();
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
