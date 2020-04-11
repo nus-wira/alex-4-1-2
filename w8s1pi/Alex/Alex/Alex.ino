@@ -754,6 +754,7 @@ void setup() {
   enablePullups();
   initializeState();
   sei();
+  waitForHello();
 }
 
 void handlePacket(TPacket *packet)
@@ -789,7 +790,7 @@ void loop() {
 //  dbprint("\n\nTESTING\n\n");
 
  // put your main code here, to run repeatedly:
-  waitForHello();
+ // waitForHello();
   TPacket recvPacket; // This holds commands from the Pi
 
   TResult result = readPacket(&recvPacket);
@@ -826,7 +827,7 @@ void loop() {
       }
       rightMul += RBUFF;
 //      rightMul = ratio > rightMul ? ratio : rightMul; 
-      dbprint("\n\n%d\n\n", (int)(rightMul*100));
+//      dbprint("\n\n%d\n\n", (int)(rightMul*100));
       stop();
 //      putArduinoToIdle();
       
